@@ -1,6 +1,7 @@
 <?php
 
 use App\Http\Controllers\Api\Auth\AuthController;
+use App\Http\Controllers\Api\DepartmentController;
 use App\Http\Controllers\Api\TestController;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Route;
@@ -15,6 +16,14 @@ Route::prefix('v1')->group(function () {
     */
 
     Route::get('/test', [TestController::class, 'test']);
+
+    Route::middleware(['auth:sanctum', 'role:admin'])->group(function () {
+        Route::get('/departments', [DepartmentController::class, 'index']);
+        Route::post('/departments', [DepartmentController::class, 'store']);
+        Route::get('/departments/{department}', [DepartmentController::class, 'show']);
+        Route::put('/departments/{department}', [DepartmentController::class, 'update']);
+        Route::delete('/departments/{department}', [DepartmentController::class, 'destroy']);
+    });
 
     /*
     |--------------------------------------------------------------------------
