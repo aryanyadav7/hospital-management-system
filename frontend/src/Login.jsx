@@ -1,11 +1,12 @@
 import { useState } from 'react'
 
-function Login({ onLogin }) {
+function Login({ onLogin, onRegister }) {
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
 
   const handleSubmit = async (e) => {
   e.preventDefault()
+  
 
   try {
     const response = await fetch(
@@ -104,6 +105,22 @@ function Login({ onLogin }) {
           >
             Login
           </button>
+
+          <div className="text-center mt-6">
+
+            <p className="text-sm text-gray-600">
+                Don't have an account?
+            </p>
+
+            <button
+                type="button"
+                onClick={onRegister}
+                className="text-blue-600 font-medium hover:underline mt-1"
+            >
+                Create an account
+            </button>
+
+            </div>
 
         </form>
 

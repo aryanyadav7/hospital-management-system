@@ -12,9 +12,20 @@ class DepartmentController extends Controller
     /**
      * Display a listing of departments.
      */
-    public function index(): JsonResponse
+    public function index(Request $request): JsonResponse
     {
-        $departments = Department::latest()->get();
+        $query = Department::query();
+
+        if ($request->filled('search')) {
+            $search = $request->input('search');
+
+            $query->where(function ($q) use ($search) {
+                $q->where('name', 'like', "%{$search}%")
+                ->orWhere('description', 'like', "%{$search}%");
+            });
+        }
+
+        $departments = $query->latest()->paginate(5);
 
         return response()->json([
             'success' => true,

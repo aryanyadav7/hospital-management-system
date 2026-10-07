@@ -2,6 +2,7 @@
 
 use App\Http\Controllers\Api\Auth\AuthController;
 use App\Http\Controllers\Api\DepartmentController;
+use App\Http\Controllers\Api\DashboardController;
 use App\Http\Controllers\Api\TestController;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Route;
@@ -24,6 +25,8 @@ Route::prefix('v1')->group(function () {
         Route::put('/departments/{department}', [DepartmentController::class, 'update']);
         Route::delete('/departments/{department}', [DepartmentController::class, 'destroy']);
     });
+
+    Route::middleware('auth:sanctum')->get('/dashboard',[DashboardController::class, 'index']);
 
     /*
     |--------------------------------------------------------------------------
