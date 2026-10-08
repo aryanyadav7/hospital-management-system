@@ -25,7 +25,9 @@ class DepartmentController extends Controller
             });
         }
 
-        $departments = $query->latest()->paginate(5);
+        $perPage = min((int) $request->input('per_page', 5), 100);
+
+        $departments = $query->latest()->paginate($perPage);
 
         return response()->json([
             'success' => true,

@@ -1,12 +1,12 @@
 <?php
 
 use App\Http\Controllers\Api\Auth\AuthController;
-use App\Http\Controllers\Api\DepartmentController;
 use App\Http\Controllers\Api\DashboardController;
+use App\Http\Controllers\Api\DepartmentController;
+use App\Http\Controllers\Api\DoctorController;
 use App\Http\Controllers\Api\TestController;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Route;
-
 
 Route::prefix('v1')->group(function () {
 
@@ -18,15 +18,42 @@ Route::prefix('v1')->group(function () {
 
     Route::get('/test', [TestController::class, 'test']);
 
+    /*
+    |--------------------------------------------------------------------------
+    | Admin Routes
+    |--------------------------------------------------------------------------
+    */
+
     Route::middleware(['auth:sanctum', 'role:admin'])->group(function () {
-        Route::get('/departments', [DepartmentController::class, 'index']);
-        Route::post('/departments', [DepartmentController::class, 'store']);
-        Route::get('/departments/{department}', [DepartmentController::class, 'show']);
-        Route::put('/departments/{department}', [DepartmentController::class, 'update']);
-        Route::delete('/departments/{department}', [DepartmentController::class, 'destroy']);
+
+        Route::prefix('departments')->group(function () {
+            Route::get('/', [DepartmentController::class, 'index']);
+            Route::post('/', [DepartmentController::class, 'store']);
+            Route::get('/{department}', [DepartmentController::class, 'show']);
+            Route::put('/{department}', [DepartmentController::class, 'update']);
+            Route::delete('/{department}', [DepartmentController::class, 'destroy']);
+        });
+
+        Route::prefix('doctors')->group(function () {
+            Route::get('/', [DoctorController::class, 'index']);
+            Route::post('/', [DoctorController::class, 'store']);
+            Route::get('/{doctor}', [DoctorController::class, 'show']);
+            Route::put('/{doctor}', [DoctorController::class, 'update']);
+            Route::delete('/{doctor}', [DoctorController::class, 'destroy']);
+        });
+
     });
 
-    Route::middleware('auth:sanctum')->get('/dashboard',[DashboardController::class, 'index']);
+    /*
+    |--------------------------------------------------------------------------
+    | Dashboard Routes
+    |--------------------------------------------------------------------------
+    */
+
+    Route::middleware('auth:sanctum')->get(
+        '/dashboard',
+        [DashboardController::class, 'index']
+    );
 
     /*
     |--------------------------------------------------------------------------
@@ -35,6 +62,7 @@ Route::prefix('v1')->group(function () {
     */
 
     Route::prefix('auth')->group(function () {
+
         Route::post('/register', [AuthController::class, 'register']);
         Route::post('/login', [AuthController::class, 'login']);
 
