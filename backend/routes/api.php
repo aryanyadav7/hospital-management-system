@@ -4,6 +4,7 @@ use App\Http\Controllers\Api\Auth\AuthController;
 use App\Http\Controllers\Api\DashboardController;
 use App\Http\Controllers\Api\DepartmentController;
 use App\Http\Controllers\Api\DoctorController;
+use App\Http\Controllers\Api\PatientController;
 use App\Http\Controllers\Api\TestController;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Route;
@@ -40,6 +41,14 @@ Route::prefix('v1')->group(function () {
             Route::get('/{doctor}', [DoctorController::class, 'show']);
             Route::put('/{doctor}', [DoctorController::class, 'update']);
             Route::delete('/{doctor}', [DoctorController::class, 'destroy']);
+        });
+
+        Route::prefix('patients')->group(function () {
+            Route::get('/', [PatientController::class, 'index']);
+            Route::post('/', [PatientController::class, 'store']);
+            Route::get('/{patient}', [PatientController::class, 'show']);
+            Route::put('/{patient}', [PatientController::class, 'update']);
+            Route::delete('/{patient}', [PatientController::class, 'destroy']);
         });
 
     });

@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react'
 import Departments from './Departments'
 import Doctors from './Doctors'
+import Patients from './Patients'
 import Login from './Login'
 import Register from './Register'
 
@@ -217,7 +218,12 @@ function App() {
           </button>
 
           <button
-            className="block w-full text-left px-6 py-3 hover:bg-blue-800"
+            onClick={() => setCurrentPage('patients')}
+            className={`block w-full text-left px-6 py-3 ${
+              currentPage === 'patients'
+                ? 'bg-blue-800'
+                : 'hover:bg-blue-800'
+            }`}
           >
             Patients
           </button>
@@ -240,10 +246,14 @@ function App() {
           <div>
             <h2 className="text-xl font-semibold text-gray-800">
               {currentPage === 'dashboard'
-                ? 'Dashboard'
-                : currentPage === 'departments'
-                  ? 'Departments'
-                  : 'Hospital Management System'}
+                  ? 'Dashboard'
+                  : currentPage === 'departments'
+                    ? 'Departments'
+                    : currentPage === 'doctors'
+                      ? 'Doctors'
+                      : currentPage === 'patients'
+                        ? 'Patients'
+                        : 'Hospital Management System'}
             </h2>
 
             <p className="text-sm text-gray-500">
@@ -390,6 +400,10 @@ function App() {
 
           {currentPage === 'doctors' && (
             <Doctors />
+          )}
+
+          {currentPage === 'patients' && (
+            <Patients />
           )}
 
         </main>

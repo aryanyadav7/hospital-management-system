@@ -4,6 +4,7 @@ namespace App\Http\Controllers\Api;
 
 use App\Http\Controllers\Controller;
 use App\Models\Department;
+use App\Models\Patient;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 
@@ -25,7 +26,7 @@ class DashboardController extends Controller
                 'counts' => [
                     'departments' => Department::count(),
                     'doctors' => 0,
-                    'patients' => 0,
+                    'patients' => Patient::count(),
                     'appointments' => 0,
                 ],
             ],
