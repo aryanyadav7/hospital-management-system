@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react'
 import Departments from './Departments'
 import Doctors from './Doctors'
 import Patients from './Patients'
+import Appointments from './Appointments'
 import Login from './Login'
 import Register from './Register'
 
@@ -229,7 +230,12 @@ function App() {
           </button>
 
           <button
-            className="block w-full text-left px-6 py-3 hover:bg-blue-800"
+            onClick={() => setCurrentPage('appointments')}
+            className={`block w-full text-left px-6 py-3 ${
+              currentPage === 'appointments'
+                ? 'bg-blue-800'
+                : 'hover:bg-blue-800'
+            }`}
           >
             Appointments
           </button>
@@ -253,7 +259,9 @@ function App() {
                       ? 'Doctors'
                       : currentPage === 'patients'
                         ? 'Patients'
-                        : 'Hospital Management System'}
+                        : currentPage === 'appointments'
+                          ? 'Appointments'
+                          : 'Hospital Management System'}
             </h2>
 
             <p className="text-sm text-gray-500">
@@ -404,6 +412,11 @@ function App() {
 
           {currentPage === 'patients' && (
             <Patients />
+          )}
+
+          {/* Appointments */}
+          {currentPage === 'appointments' && (
+            <Appointments />
           )}
 
         </main>

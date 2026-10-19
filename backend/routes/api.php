@@ -5,6 +5,7 @@ use App\Http\Controllers\Api\DashboardController;
 use App\Http\Controllers\Api\DepartmentController;
 use App\Http\Controllers\Api\DoctorController;
 use App\Http\Controllers\Api\PatientController;
+use App\Http\Controllers\Api\AppointmentController;
 use App\Http\Controllers\Api\TestController;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Route;
@@ -50,6 +51,19 @@ Route::prefix('v1')->group(function () {
             Route::put('/{patient}', [PatientController::class, 'update']);
             Route::delete('/{patient}', [PatientController::class, 'destroy']);
         });
+
+        
+        Route::prefix('appointments')->group(function () {
+            // Keep this route before /{appointment}.
+            Route::get('/today', [AppointmentController::class, 'today']);
+
+            Route::get('/', [AppointmentController::class, 'index']);
+            Route::post('/', [AppointmentController::class, 'store']);
+            Route::get('/{appointment}', [AppointmentController::class, 'show']);
+            Route::put('/{appointment}', [AppointmentController::class, 'update']);
+            Route::delete('/{appointment}', [AppointmentController::class, 'destroy']);
+        });
+
 
     });
 
