@@ -6,6 +6,8 @@ use App\Http\Controllers\Api\DepartmentController;
 use App\Http\Controllers\Api\DoctorController;
 use App\Http\Controllers\Api\PatientController;
 use App\Http\Controllers\Api\AppointmentController;
+use App\Http\Controllers\Api\ProfileController;
+use App\Http\Controllers\Api\HospitalSettingController;
 use App\Http\Controllers\Api\TestController;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Route;
@@ -64,7 +66,27 @@ Route::prefix('v1')->group(function () {
             Route::delete('/{appointment}', [AppointmentController::class, 'destroy']);
         });
 
+        Route::prefix('hospital-settings')->group(function () {
+            Route::put('/', [HospitalSettingController::class, 'update']);
+            Route::post('/logo', [HospitalSettingController::class, 'uploadLogo']);
+            Route::delete('/logo', [HospitalSettingController::class, 'removeLogo']);
+        });
 
+
+    });
+
+    /*
+    |--------------------------------------------------------------------------
+    | Profile Routes
+    |--------------------------------------------------------------------------
+    */
+
+    Route::middleware('auth:sanctum')->prefix('profile')->group(function () {
+        Route::get('/', [ProfileController::class, 'show']);
+        Route::put('/', [ProfileController::class, 'update']);
+        Route::put('/password', [ProfileController::class, 'updatePassword']);
+        Route::post('/photo', [ProfileController::class, 'uploadPhoto']);
+        Route::delete('/photo', [ProfileController::class, 'removePhoto']);
     });
 
     /*
@@ -76,6 +98,11 @@ Route::prefix('v1')->group(function () {
     Route::middleware('auth:sanctum')->get(
         '/dashboard',
         [DashboardController::class, 'index']
+    );
+
+    Route::middleware('auth:sanctum')->get(
+        '/hospital-settings',
+        [HospitalSettingController::class, 'show']
     );
 
     /*

@@ -3,6 +3,8 @@ import Departments from './Departments'
 import Doctors from './Doctors'
 import Patients from './Patients'
 import Appointments from './Appointments'
+import Profile from './Profile'
+import HospitalSettings from './HospitalSettings'
 import Login from './Login'
 import Register from './Register'
 
@@ -240,6 +242,28 @@ function App() {
             Appointments
           </button>
 
+          {user?.role === 'admin' && (
+            <button
+              onClick={() => setCurrentPage('hospital-settings')}
+              className={`block w-full text-left px-6 py-3 ${
+                currentPage === 'hospital-settings'
+                  ? 'bg-blue-800'
+                  : 'hover:bg-blue-800'
+              }`}
+            >
+              Hospital Settings
+            </button>
+          )}
+
+          <button
+            onClick={() => setCurrentPage('profile')}
+            className={`block w-full text-left px-6 py-3 ${
+              currentPage === 'profile' ? 'bg-blue-800' : 'hover:bg-blue-800'
+            }`}
+          >
+            My Profile
+          </button>
+
         </nav>
       </aside>
 
@@ -261,6 +285,10 @@ function App() {
                         ? 'Patients'
                         : currentPage === 'appointments'
                           ? 'Appointments'
+                          : currentPage === 'hospital-settings'
+                            ? 'Hospital Settings'
+                            : currentPage === 'profile'
+                              ? 'My Profile'
                           : 'Hospital Management System'}
             </h2>
 
@@ -418,6 +446,10 @@ function App() {
           {currentPage === 'appointments' && (
             <Appointments />
           )}
+
+          {currentPage === 'hospital-settings' && <HospitalSettings />}
+
+          {currentPage === 'profile' && <Profile />}
 
         </main>
 
