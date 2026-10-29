@@ -1,10 +1,33 @@
-import { useEffect, useState } from 'react'
+
+import { useCallback, useEffect, useState } from 'react'
+import api from './services/api'
+
+import Button from './components/ui/Button'
+import Input from './components/ui/Input'
+import Select from './components/ui/Select'
+import Card from './components/ui/Card'
+import Badge from './components/ui/Badge'
+
+import Table from './components/common/Table'
+import Pagination from './components/common/Pagination'
+import SearchBar from './components/common/SearchBar'
+import Loader from './components/common/Loader'
+import Alert from './components/common/Alert'
+import Modal from './components/common/Modal'
+import ConfirmDialog from './components/common/ConfirmDialog'
+
+const EMPTY_FORM = {
+  name: '',
+  description: '',
+  status: true,
+}
 
 function Departments() {
   const [departments, setDepartments] = useState([])
   const [loading, setLoading] = useState(true)
-  const [search, setSearch] = useState('')
+  const [saving, setSaving] = useState(false)
 
+  const [search, setSearch] = useState('')
   const [error, setError] = useState('')
   const [success, setSuccess] = useState('')
 
@@ -12,96 +35,107 @@ function Departments() {
   const [lastPage, setLastPage] = useState(1)
 
   const [showForm, setShowForm] = useState(false)
-  const [name, setName] = useState('')
-  const [description, setDescription] = useState('')
-  const [status, setStatus] = useState(true)
-
+  const [form, setForm] = useState(EMPTY_FORM)
   const [editingDepartment, setEditingDepartment] = useState(null)
 
-  useEffect(() => {
-    fetchDepartments()
-  }, [])
+  const [departmentToDelete, setDepartmentToDelete] = useState(null)
+  const [deleting, setDeleting] = useState(false)
 
-  // Fetch departments
-  const fetchDepartments = async (page = 1) => {
-    try {
-      setLoading(true)
-      setError('')
+  // Fetch departments from Laravel API.
+  const fetchDepartments = useCallback(
+    async (page = 1, searchTerm = search) => {
+      try {
+        setLoading(true)
+        setError('')
 
-      const token = localStorage.getItem('token')
-
-      const response = await fetch(
-        `http://127.0.0.1:8000/api/v1/departments?page=${page}&search=${encodeURIComponent(search)}`,
-        {
-          method: 'GET',
-          headers: {
-            Accept: 'application/json',
-            Authorization: `Bearer ${token}`,
-          },
-        }
-      )
-
-      const data = await response.json()
-
-      console.log('Departments response:', data)
-
-      if (!response.ok || !data.success) {
-        throw new Error(
-          data.message || 'Unable to load departments.'
+        const data = await api.get(
+          `/departments?page=${page}&search=${encodeURIComponent(searchTerm)}`
         )
-      }
 
-      setDepartments(data.data.data)
-      setCurrentPage(data.data.current_page)
-      setLastPage(data.data.last_page)
-    } catch (error) {
-      console.error('Departments error:', error)
-      setError(error.message || 'Unable to load departments.')
-    } finally {
-      setLoading(false)
-    }
+        if (!data.success) {
+          throw new Error(data.message || 'Unable to load departments.')
+        }
+
+        setDepartments(data.data.data || [])
+        setCurrentPage(data.data.current_page || 1)
+        setLastPage(data.data.last_page || 1)
+      } catch (err) {
+        console.error('Departments error:', err)
+        setError(err.message || 'Unable to load departments.')
+      } finally {
+        setLoading(false)
+      }
+    },
+    [search]
+  )
+
+  useEffect(() => {
+    fetchDepartments(1, '')
+  }, []) // Initial load only.
+
+  const resetForm = () => {
+    setForm(EMPTY_FORM)
+    setEditingDepartment(null)
   }
 
-  // Create / Update department
-  const handleSaveDepartment = async (e) => {
-    e.preventDefault()
+  const openCreateForm = () => {
+    resetForm()
+    setError('')
+    setShowForm(true)
+  }
+
+  const openEditForm = (department) => {
+    setEditingDepartment(department)
+    setForm({
+      name: department.name || '',
+      description: department.description || '',
+      status:
+        department.status === true ||
+        department.status === 1 ||
+        department.status === '1',
+    })
+    setError('')
+    setShowForm(true)
+  }
+
+  const closeForm = () => {
+    setShowForm(false)
+    resetForm()
+  }
+
+  const handleFormChange = (field, value) => {
+    setForm((previous) => ({
+      ...previous,
+      [field]: value,
+    }))
+  }
+
+  // Create or update a department.
+  const handleSaveDepartment = async (event) => {
+    event.preventDefault()
+
+    setError('')
+    setSuccess('')
+    setSaving(true)
 
     try {
-      setError('')
-      setSuccess('')
-
-      const token = localStorage.getItem('token')
-
       const isEditing = editingDepartment !== null
 
-      const url = isEditing
-        ? `http://127.0.0.1:8000/api/v1/departments/${editingDepartment.id}`
-        : 'http://127.0.0.1:8000/api/v1/departments'
+      const payload = {
+        name: form.name.trim(),
+        description: form.description.trim(),
+        status: form.status,
+      }
 
-      const method = isEditing ? 'PUT' : 'POST'
+      const data = isEditing
+        ? await api.put(
+            `/departments/${editingDepartment.id}`,
+            payload
+          )
+        : await api.post('/departments', payload)
 
-      const response = await fetch(url, {
-        method,
-        headers: {
-          'Content-Type': 'application/json',
-          Accept: 'application/json',
-          Authorization: `Bearer ${token}`,
-        },
-        body: JSON.stringify({
-          name,
-          description,
-          status,
-        }),
-      })
-
-      const data = await response.json()
-
-      console.log('Save department response:', data)
-
-      if (!response.ok || !data.success) {
-        throw new Error(
-          data.message || 'Unable to save department.'
-        )
+      if (!data.success) {
+        throw new Error(data.message || 'Unable to save department.')
       }
 
       setSuccess(
@@ -110,355 +144,365 @@ function Departments() {
           : 'Department created successfully.'
       )
 
-      setName('')
-      setDescription('')
-      setStatus(true)
-      setShowForm(false)
-      setEditingDepartment(null)
+      closeForm()
 
-      await fetchDepartments(isEditing ? currentPage : 1)
-    } catch (error) {
-      console.error('Save department error:', error)
-      setError(error.message || 'Unable to save department.')
+      await fetchDepartments(
+        isEditing ? currentPage : 1,
+        search
+      )
+    } catch (err) {
+      console.error('Save department error:', err)
+
+      const validationMessage = err.data?.errors
+        ? Object.values(err.data.errors).flat().join(' ')
+        : ''
+
+      setError(
+        validationMessage ||
+          err.message ||
+          'Unable to save department.'
+      )
+    } finally {
+      setSaving(false)
     }
   }
 
-  // Edit department
-  const handleEditDepartment = (department) => {
-    setEditingDepartment(department)
-    setName(department.name)
-    setDescription(department.description || '')
-    setStatus(department.status)
-    setShowForm(true)
-  }
+  // Delete a department after confirmation.
+  const handleDeleteDepartment = async () => {
+    if (!departmentToDelete) return
 
-  // Delete department
-  const handleDeleteDepartment = async (department) => {
-    const confirmed = window.confirm(
-      `Are you sure you want to delete "${department.name}"?`
-    )
-
-    if (!confirmed) {
-      return
-    }
+    setError('')
+    setSuccess('')
+    setDeleting(true)
 
     try {
-      setError('')
-      setSuccess('')
-
-      const token = localStorage.getItem('token')
-
-      const response = await fetch(
-        `http://127.0.0.1:8000/api/v1/departments/${department.id}`,
-        {
-          method: 'DELETE',
-          headers: {
-            Accept: 'application/json',
-            Authorization: `Bearer ${token}`,
-          },
-        }
+      const data = await api.delete(
+        `/departments/${departmentToDelete.id}`
       )
 
-      const data = await response.json()
-
-      console.log('Delete department response:', data)
-
-      if (!response.ok || !data.success) {
-        throw new Error(
-          data.message || 'Unable to delete department.'
-        )
+      if (!data.success) {
+        throw new Error(data.message || 'Unable to delete department.')
       }
 
       setSuccess('Department deleted successfully.')
+      setDepartmentToDelete(null)
 
-      // Refresh the current page from the API
-      await fetchDepartments(currentPage)
-    } catch (error) {
-      console.error('Delete department error:', error)
-      setError(error.message || 'Unable to delete department.')
+      const nextPage =
+        departments.length === 1 && currentPage > 1
+          ? currentPage - 1
+          : currentPage
+
+      await fetchDepartments(nextPage, search)
+    } catch (err) {
+      console.error('Delete department error:', err)
+      setError(err.message || 'Unable to delete department.')
+    } finally {
+      setDeleting(false)
     }
   }
 
-  // Loading state
-  if (loading) {
+  const handleSearch = () => {
+    fetchDepartments(1, search)
+  }
+
+  const handleClearSearch = () => {
+    setSearch('')
+    fetchDepartments(1, '')
+  }
+
+  const columns = [
+    {
+      key: 'name',
+      label: 'Department',
+      render: (department) => (
+        <div>
+          <p className="font-semibold text-gray-800">
+            {department.name}
+          </p>
+          <p className="mt-1 text-sm text-gray-500">
+            {department.description || 'No description available.'}
+          </p>
+        </div>
+      ),
+    },
+    {
+      key: 'status',
+      label: 'Status',
+      render: (department) => {
+        const isActive =
+          department.status === true ||
+          department.status === 1 ||
+          department.status === '1'
+
+        return (
+          <Badge variant={isActive ? 'success' : 'danger'}>
+            {isActive ? 'Active' : 'Inactive'}
+          </Badge>
+        )
+      },
+    },
+    {
+      key: 'actions',
+      label: 'Actions',
+      render: (department) => (
+        <div className="flex flex-wrap gap-2">
+          <Button
+            type="button"
+            variant="secondary"
+            onClick={() => openEditForm(department)}
+          >
+            Edit
+          </Button>
+
+          <Button
+            type="button"
+            variant="danger"
+            onClick={() => setDepartmentToDelete(department)}
+          >
+            Delete
+          </Button>
+        </div>
+      ),
+    },
+  ]
+
+  if (loading && departments.length === 0) {
     return (
-      <div className="bg-white rounded-xl shadow-sm p-6">
-        <p className="text-gray-600">
-          Loading departments...
-        </p>
-      </div>
+      <Card title="Departments">
+        <Loader message="Loading departments..." />
+      </Card>
     )
   }
 
   return (
-    <div>
-
-      {/* Error Message */}
+    <div className="space-y-6">
+      {/* Notifications */}
       {error && (
-        <div className="mb-4 rounded-lg bg-red-100 px-4 py-3 text-red-700">
+        <Alert
+          type="error"
+          title="Something went wrong"
+          onClose={() => setError('')}
+        >
           {error}
-        </div>
+        </Alert>
       )}
 
-      {/* Success Message */}
       {success && (
-        <div className="mb-4 rounded-lg bg-green-100 px-4 py-3 text-green-700">
+        <Alert
+          type="success"
+          title="Success"
+          onClose={() => setSuccess('')}
+        >
           {success}
-        </div>
+        </Alert>
       )}
 
-      {/* Page Header */}
-      <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
-
+      {/* Page heading */}
+      <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
         <div>
           <h1 className="text-2xl font-bold text-gray-800">
             Departments
           </h1>
-
           <p className="mt-2 text-gray-600">
             Manage hospital departments.
           </p>
         </div>
 
-        <button
-          onClick={() => {
-            setShowForm(!showForm)
-
-            if (showForm) {
-              setEditingDepartment(null)
-              setName('')
-              setDescription('')
-              setStatus(true)
-            }
-          }}
-          className="bg-blue-600 text-white px-5 py-2 rounded-lg hover:bg-blue-700"
+        <Button
+          type="button"
+          variant="primary"
+          onClick={showForm ? closeForm : openCreateForm}
         >
-          {showForm ? 'Cancel' : 'Add Department'}
-        </button>
-
+          {showForm ? 'Close Form' : 'Add Department'}
+        </Button>
       </div>
 
       {/* Search */}
-      <div className="mt-6 flex flex-col sm:flex-row gap-3">
-
-        <input
-          type="text"
-          value={search}
-          onChange={(e) => setSearch(e.target.value)}
-          onKeyDown={(e) => {
-            if (e.key === 'Enter') {
-              fetchDepartments(1)
-            }
-          }}
-          placeholder="Search departments..."
-          className="flex-1 border border-gray-300 rounded-lg px-4 py-3 focus:outline-none focus:ring-2 focus:ring-blue-500"
-        />
-
-        <button
-          onClick={() => fetchDepartments(1)}
-          className="bg-blue-600 text-white px-5 py-3 rounded-lg hover:bg-blue-700"
-        >
-          Search
-        </button>
-
-        {search && (
-          <button
-            onClick={() => {
-              setSearch('')
-              fetchDepartments(1)
-            }}
-            className="bg-gray-500 text-white px-5 py-3 rounded-lg hover:bg-gray-600"
-          >
-            Clear
-          </button>
-        )}
-
-      </div>
-
-      {/* Add / Edit Department Form */}
-      {showForm && (
-        <form
-          onSubmit={handleSaveDepartment}
-          className="mt-6 bg-white p-6 rounded-xl shadow-sm"
-        >
-
-          <h2 className="text-lg font-semibold text-gray-800 mb-5">
-            {editingDepartment
-              ? 'Edit Department'
-              : 'Add Department'}
-          </h2>
-
-          {/* Department Name */}
-          <div className="mb-4">
-
-            <label className="block text-sm font-medium text-gray-700 mb-2">
-              Department Name
-            </label>
-
-            <input
-              type="text"
-              value={name}
-              onChange={(e) => setName(e.target.value)}
-              placeholder="Enter department name"
-              className="w-full border border-gray-300 rounded-lg px-4 py-3 focus:outline-none focus:ring-2 focus:ring-blue-500"
-              required
+      <Card>
+        <div className="flex flex-col gap-3 sm:flex-row">
+          <div className="flex-1">
+            <SearchBar
+              value={search}
+              onChange={(value) =>
+                setSearch(
+                  typeof value === 'string'
+                    ? value
+                    : value.target.value
+                )
+              }
+              placeholder="Search departments..."
             />
-
           </div>
 
-          {/* Description */}
-          <div className="mb-4">
+          <Button
+            type="button"
+            variant="primary"
+            onClick={handleSearch}
+            disabled={loading}
+          >
+            Search
+          </Button>
 
-            <label className="block text-sm font-medium text-gray-700 mb-2">
+          {search && (
+            <Button
+              type="button"
+              variant="secondary"
+              onClick={handleClearSearch}
+              disabled={loading}
+            >
+              Clear
+            </Button>
+          )}
+        </div>
+      </Card>
+
+      {/* Department form modal */}
+      <Modal
+        isOpen={showForm}
+        onClose={closeForm}
+        title={
+          editingDepartment ? 'Edit Department' : 'Add Department'
+        }
+        size="medium"
+      >
+        <form onSubmit={handleSaveDepartment} className="space-y-5">
+          <Input
+            label="Department Name"
+            name="name"
+            value={form.name}
+            onChange={(event) =>
+              handleFormChange('name', event.target.value)
+            }
+            placeholder="Enter department name"
+            required
+            disabled={saving}
+          />
+
+          <div>
+            <label
+              htmlFor="department-description"
+              className="mb-2 block text-sm font-medium text-gray-700"
+            >
               Description
             </label>
 
             <textarea
-              value={description}
-              onChange={(e) => setDescription(e.target.value)}
+              id="department-description"
+              name="description"
+              value={form.description}
+              onChange={(event) =>
+                handleFormChange('description', event.target.value)
+              }
               placeholder="Enter department description"
-              rows="4"
-              className="w-full border border-gray-300 rounded-lg px-4 py-3 focus:outline-none focus:ring-2 focus:ring-blue-500"
+              rows={4}
+              disabled={saving}
+              className="w-full rounded-lg border border-gray-300 px-4 py-3 focus:outline-none focus:ring-2 focus:ring-blue-500 disabled:opacity-60"
             />
-
           </div>
 
-          {/* Status */}
-          <div className="mb-5">
+          <Select
+            label="Status"
+            name="status"
+            value={form.status ? 'active' : 'inactive'}
+            onChange={(event) =>
+              handleFormChange(
+                'status',
+                event.target.value === 'active'
+              )
+            }
+            options={[
+              { value: 'active', label: 'Active' },
+              { value: 'inactive', label: 'Inactive' },
+            ]}
+            required
+            disabled={saving}
+          />
 
-            <label className="flex items-center gap-2">
+          <div className="flex flex-wrap justify-end gap-3 border-t border-gray-200 pt-4">
+            <Button
+              type="button"
+              variant="secondary"
+              onClick={closeForm}
+              disabled={saving}
+            >
+              Cancel
+            </Button>
 
-              <input
-                type="checkbox"
-                checked={status}
-                onChange={(e) => setStatus(e.target.checked)}
-              />
-
-              <span className="text-sm text-gray-700">
-                Active
-              </span>
-
-            </label>
-
+            <Button
+              type="submit"
+              variant="success"
+              disabled={saving}
+            >
+              {saving
+                ? 'Saving...'
+                : editingDepartment
+                  ? 'Update Department'
+                  : 'Save Department'}
+            </Button>
           </div>
-
-          {/* Save / Update */}
-          <button
-            type="submit"
-            className="bg-green-600 text-white px-5 py-2 rounded-lg hover:bg-green-700"
-          >
-            {editingDepartment
-              ? 'Update Department'
-              : 'Save Department'}
-          </button>
-
         </form>
-      )}
+      </Modal>
 
-      {/* Department List */}
-      <div className="mt-6">
+      {/* Departments table */}
+      <Card
+        title="Department List"
+        description="View, search, edit, and delete hospital departments."
+      >
+        {loading && (
+          <div className="mb-4">
+            <Loader
+              size="small"
+              message="Refreshing departments..."
+            />
+          </div>
+        )}
 
-        {departments.length === 0 ? (
-
-          <div className="bg-white rounded-xl shadow-sm p-6 text-center">
-            <p className="text-gray-500">
+        {!loading && departments.length === 0 ? (
+          <div className="py-8 text-center">
+            <p className="font-medium text-gray-700">
               No departments found.
             </p>
+            <p className="mt-1 text-sm text-gray-500">
+              Try another search or add a department.
+            </p>
           </div>
-
         ) : (
-
-          departments.map((department) => (
-
-            <div
-              key={department.id}
-              className="bg-white p-5 rounded-lg shadow-sm mb-4"
-            >
-
-              <div className="flex flex-col md:flex-row md:items-start md:justify-between gap-4">
-
-                <div>
-
-                  <h2 className="text-lg font-semibold text-gray-800">
-                    {department.name}
-                  </h2>
-
-                  <p className="text-gray-600 mt-1">
-                    {department.description ||
-                      'No description available.'}
-                  </p>
-
-                  <span
-                    className={`inline-block mt-3 px-3 py-1 rounded-full text-xs font-medium ${
-                      department.status
-                        ? 'bg-green-100 text-green-700'
-                        : 'bg-red-100 text-red-700'
-                    }`}
-                  >
-                    {department.status ? 'Active' : 'Inactive'}
-                  </span>
-
-                </div>
-
-                <div className="flex gap-3">
-
-                  <button
-                    onClick={() =>
-                      handleEditDepartment(department)
-                    }
-                    className="bg-yellow-500 text-white px-4 py-2 rounded-lg hover:bg-yellow-600"
-                  >
-                    Edit
-                  </button>
-
-                  <button
-                    onClick={() =>
-                      handleDeleteDepartment(department)
-                    }
-                    className="bg-red-600 text-white px-4 py-2 rounded-lg hover:bg-red-700"
-                  >
-                    Delete
-                  </button>
-
-                </div>
-
-              </div>
-
-            </div>
-
-          ))
-
+          <Table
+            columns={columns}
+            data={departments}
+            rowKey="id"
+            emptyMessage="No departments found."
+          />
         )}
 
-        {/* Pagination */}
-        {lastPage > 1 && (
-          <div className="flex items-center justify-center gap-4 mt-6">
-
-            <button
-              onClick={() => fetchDepartments(currentPage - 1)}
-              disabled={currentPage === 1}
-              className="px-4 py-2 bg-gray-200 rounded-lg disabled:opacity-50"
-            >
-              Previous
-            </button>
-
-            <span className="text-gray-700">
-              Page {currentPage} of {lastPage}
-            </span>
-
-            <button
-              onClick={() => fetchDepartments(currentPage + 1)}
-              disabled={currentPage === lastPage}
-              className="px-4 py-2 bg-gray-200 rounded-lg disabled:opacity-50"
-            >
-              Next
-            </button>
-
+        {!loading && lastPage > 1 && (
+          <div className="mt-5 border-t border-gray-200 pt-4">
+            <Pagination
+              currentPage={currentPage}
+              totalPages={lastPage}
+              onPageChange={(page) => fetchDepartments(page, search)}
+            />
           </div>
         )}
+      </Card>
 
-      </div>
-
+      {/* Delete confirmation */}
+      <ConfirmDialog
+        isOpen={Boolean(departmentToDelete)}
+        onClose={() => {
+          if (!deleting) setDepartmentToDelete(null)
+        }}
+        onConfirm={handleDeleteDepartment}
+        title="Delete Department"
+        message={
+          departmentToDelete
+            ? `Are you sure you want to delete "${departmentToDelete.name}"? This action cannot be undone.`
+            : 'Are you sure you want to delete this department?'
+        }
+        confirmText="Delete"
+        cancelText="Cancel"
+        loading={deleting}
+      />
     </div>
   )
 }

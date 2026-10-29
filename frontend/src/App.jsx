@@ -1,4 +1,8 @@
+
 import { useEffect, useState } from 'react'
+
+import api from './services/api'
+
 import Departments from './Departments'
 import Doctors from './Doctors'
 import Patients from './Patients'
@@ -19,7 +23,7 @@ function App() {
   const [user, setUser] = useState(null)
 
   /*
-   * Restore login session after page reload
+   * Restore login session after page reload.
    */
   useEffect(() => {
     const token = localStorage.getItem('token')
@@ -38,55 +42,63 @@ function App() {
         localStorage.removeItem('user')
       }
     }
+
+    setDashboardLoading(false)
   }, [])
 
   /*
-   * Fetch dashboard data after login
+   * Fetch dashboard data after login.
+   * Uses the shared API service.
    */
   useEffect(() => {
     if (!isLoggedIn) {
+      setDashboardLoading(false)
       return
     }
 
-    const fetchDashboard = async () => {
+    let cancelled = false
+
+    async function fetchDashboard() {
+      setDashboardLoading(true)
+
       try {
-        setDashboardLoading(true)
+        const response = await api.get('/dashboard')
 
-        const token = localStorage.getItem('token')
+        if (cancelled) return
 
-        const response = await fetch(
-          'http://127.0.0.1:8000/api/v1/dashboard',
-          {
-            method: 'GET',
-            headers: {
-              Accept: 'application/json',
-              Authorization: `Bearer ${token}`,
-            },
+        if (response?.success) {
+          setDashboardData(response.data)
+
+          if (response.data?.user) {
+            setUser(response.data.user)
+            localStorage.setItem(
+              'user',
+              JSON.stringify(response.data.user)
+            )
           }
-        )
-
-        const data = await response.json()
-
-        console.log('Dashboard response:', data)
-
-        if (data.success) {
-          setDashboardData(data.data)
-          setUser(data.data.user)
         }
       } catch (error) {
-        console.error('Dashboard error:', error)
+        if (!cancelled) {
+          console.error('Dashboard error:', error)
+        }
       } finally {
-        setDashboardLoading(false)
+        if (!cancelled) {
+          setDashboardLoading(false)
+        }
       }
     }
 
     fetchDashboard()
+
+    return () => {
+      cancelled = true
+    }
   }, [isLoggedIn])
 
   /*
-   * Login
+   * Login.
    */
-  const handleLogin = () => {
+  function handleLogin() {
     const storedUser = localStorage.getItem('user')
 
     if (storedUser) {
@@ -101,21 +113,14 @@ function App() {
     setIsLoggedIn(true)
   }
 
-  const handleLogout = async () => {
+  /*
+   * Logout.
+   * The local session is cleared even if the API request fails.
+   */
+  async function handleLogout() {
     try {
-      const token = localStorage.getItem('token')
-
-      if (token) {
-        await fetch(
-          'http://127.0.0.1:8000/api/v1/auth/logout',
-          {
-            method: 'POST',
-            headers: {
-              Accept: 'application/json',
-              Authorization: `Bearer ${token}`,
-            },
-          }
-        )
+      if (localStorage.getItem('token')) {
+        await api.post('/auth/logout', {})
       }
     } catch (error) {
       console.error('Logout error:', error)
@@ -125,32 +130,53 @@ function App() {
 
       setUser(null)
       setDashboardData(null)
+      setDashboardLoading(false)
       setIsLoggedIn(false)
+      setShowRegister(false)
       setCurrentPage('dashboard')
     }
   }
 
   /*
-   * Show login page when user is not logged in
+   * Registration completed.
+   */
+  function handleRegister() {
+    const storedUser = localStorage.getItem('user')
+
+    if (storedUser) {
+      try {
+        setUser(JSON.parse(storedUser))
+      } catch (error) {
+        console.error('Unable to read stored user:', error)
+      }
+    }
+
+    setShowRegister(false)
+    setCurrentPage('dashboard')
+    setIsLoggedIn(true)
+  }
+
+  /*
+   * Page title for the top header.
+   */
+  const pageTitles = {
+    dashboard: 'Dashboard',
+    departments: 'Departments',
+    doctors: 'Doctors',
+    patients: 'Patients',
+    appointments: 'Appointments',
+    'hospital-settings': 'Hospital Settings',
+    profile: 'My Profile',
+  }
+
+  /*
+   * Show login or registration when logged out.
    */
   if (!isLoggedIn) {
     if (showRegister) {
       return (
         <Register
-          onRegister={() => {
-            const storedUser = localStorage.getItem('user')
-
-            if (storedUser) {
-              try {
-                setUser(JSON.parse(storedUser))
-              } catch (error) {
-                console.error('Unable to read stored user:', error)
-              }
-            }
-
-            setShowRegister(false)
-            setIsLoggedIn(true)
-          }}
+          onRegister={handleRegister}
           onLogin={() => setShowRegister(false)}
         />
       )
@@ -165,10 +191,10 @@ function App() {
   }
 
   return (
-    <div className="min-h-screen bg-gray-100 flex">
+    <div className="flex min-h-screen bg-gray-100">
 
       {/* Sidebar */}
-      <aside className="w-64 bg-blue-900 text-white min-h-screen">
+      <aside className="min-h-screen w-64 shrink-0 bg-blue-900 text-white">
 
         {/* Logo */}
         <div className="p-6">
@@ -176,18 +202,18 @@ function App() {
             HMS
           </h1>
 
-          <p className="text-blue-200 text-sm mt-1">
+          <p className="mt-1 text-sm text-blue-200">
             Hospital Management
           </p>
         </div>
 
         {/* Navigation */}
-        <nav className="mt-6">
+        <nav className="mt-6 space-y-1">
 
-          {/* Dashboard */}
           <button
+            type="button"
             onClick={() => setCurrentPage('dashboard')}
-            className={`block w-full text-left px-6 py-3 ${
+            className={`block w-full px-6 py-3 text-left ${
               currentPage === 'dashboard'
                 ? 'bg-blue-800'
                 : 'hover:bg-blue-800'
@@ -196,10 +222,10 @@ function App() {
             Dashboard
           </button>
 
-          {/* Departments */}
           <button
+            type="button"
             onClick={() => setCurrentPage('departments')}
-            className={`block w-full text-left px-6 py-3 ${
+            className={`block w-full px-6 py-3 text-left ${
               currentPage === 'departments'
                 ? 'bg-blue-800'
                 : 'hover:bg-blue-800'
@@ -208,10 +234,10 @@ function App() {
             Departments
           </button>
 
-          {/* Future Modules */}
           <button
+            type="button"
             onClick={() => setCurrentPage('doctors')}
-            className={`block w-full text-left px-6 py-3 ${
+            className={`block w-full px-6 py-3 text-left ${
               currentPage === 'doctors'
                 ? 'bg-blue-800'
                 : 'hover:bg-blue-800'
@@ -221,8 +247,9 @@ function App() {
           </button>
 
           <button
+            type="button"
             onClick={() => setCurrentPage('patients')}
-            className={`block w-full text-left px-6 py-3 ${
+            className={`block w-full px-6 py-3 text-left ${
               currentPage === 'patients'
                 ? 'bg-blue-800'
                 : 'hover:bg-blue-800'
@@ -232,8 +259,9 @@ function App() {
           </button>
 
           <button
+            type="button"
             onClick={() => setCurrentPage('appointments')}
-            className={`block w-full text-left px-6 py-3 ${
+            className={`block w-full px-6 py-3 text-left ${
               currentPage === 'appointments'
                 ? 'bg-blue-800'
                 : 'hover:bg-blue-800'
@@ -244,8 +272,9 @@ function App() {
 
           {user?.role === 'admin' && (
             <button
+              type="button"
               onClick={() => setCurrentPage('hospital-settings')}
-              className={`block w-full text-left px-6 py-3 ${
+              className={`block w-full px-6 py-3 text-left ${
                 currentPage === 'hospital-settings'
                   ? 'bg-blue-800'
                   : 'hover:bg-blue-800'
@@ -256,9 +285,12 @@ function App() {
           )}
 
           <button
+            type="button"
             onClick={() => setCurrentPage('profile')}
-            className={`block w-full text-left px-6 py-3 ${
-              currentPage === 'profile' ? 'bg-blue-800' : 'hover:bg-blue-800'
+            className={`block w-full px-6 py-3 text-left ${
+              currentPage === 'profile'
+                ? 'bg-blue-800'
+                : 'hover:bg-blue-800'
             }`}
           >
             My Profile
@@ -268,28 +300,14 @@ function App() {
       </aside>
 
       {/* Main Content */}
-      <div className="flex-1">
+      <div className="min-w-0 flex-1">
 
         {/* Top Header */}
-        <header className="bg-white shadow-sm px-8 py-4 flex items-center justify-between">
+        <header className="flex flex-wrap items-center justify-between gap-4 bg-white px-8 py-4 shadow-sm">
 
           <div>
             <h2 className="text-xl font-semibold text-gray-800">
-              {currentPage === 'dashboard'
-                  ? 'Dashboard'
-                  : currentPage === 'departments'
-                    ? 'Departments'
-                    : currentPage === 'doctors'
-                      ? 'Doctors'
-                      : currentPage === 'patients'
-                        ? 'Patients'
-                        : currentPage === 'appointments'
-                          ? 'Appointments'
-                          : currentPage === 'hospital-settings'
-                            ? 'Hospital Settings'
-                            : currentPage === 'profile'
-                              ? 'My Profile'
-                          : 'Hospital Management System'}
+              {pageTitles[currentPage] || 'Hospital Management System'}
             </h2>
 
             <p className="text-sm text-gray-500">
@@ -300,11 +318,10 @@ function App() {
           {/* User Information */}
           <div className="flex items-center gap-4">
 
-            {/* User Information */}
             <div className="flex items-center gap-3">
 
               {/* Avatar */}
-              <div className="w-10 h-10 rounded-full bg-blue-600 text-white flex items-center justify-center font-semibold">
+              <div className="flex h-10 w-10 items-center justify-center rounded-full bg-blue-600 font-semibold text-white">
                 {user?.name?.charAt(0).toUpperCase() || 'U'}
               </div>
 
@@ -314,7 +331,7 @@ function App() {
                   {user?.name || 'User'}
                 </p>
 
-                <p className="text-xs text-gray-500 capitalize">
+                <p className="text-xs capitalize text-gray-500">
                   {user?.role || 'User'}
                 </p>
               </div>
@@ -323,14 +340,14 @@ function App() {
 
             {/* Logout */}
             <button
+              type="button"
               onClick={handleLogout}
-              className="bg-red-600 text-white px-4 py-2 rounded-lg hover:bg-red-700"
+              className="rounded-lg bg-red-600 px-4 py-2 text-white hover:bg-red-700"
             >
               Logout
             </button>
 
           </div>
-
         </header>
 
         {/* Page Content */}
@@ -338,12 +355,10 @@ function App() {
 
           {/* Dashboard */}
           {currentPage === 'dashboard' && (
-
             <div>
 
-              {/* Role Based Dashboard Heading */}
+              {/* Dashboard Heading */}
               <div className="mb-6">
-
                 <h3 className="text-2xl font-bold text-gray-800">
                   {user?.role === 'admin'
                     ? 'Admin Dashboard'
@@ -354,107 +369,92 @@ function App() {
                         : 'Dashboard'}
                 </h3>
 
-                <p className="text-gray-500 mt-1">
+                <p className="mt-1 text-gray-500">
                   Welcome, {user?.name || 'User'}
                 </p>
-
               </div>
 
               {/* Dashboard Cards */}
-              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+              <div className="grid grid-cols-1 gap-6 md:grid-cols-2 lg:grid-cols-4">
 
                 {/* Departments */}
-                <div className="bg-white rounded-xl shadow-sm p-6">
-
+                <div className="rounded-xl bg-white p-6 shadow-sm">
                   <p className="text-sm text-gray-500">
                     Total Departments
                   </p>
 
-                  <h3 className="text-3xl font-bold text-gray-800 mt-2">
+                  <h3 className="mt-2 text-3xl font-bold text-gray-800">
                     {dashboardLoading
                       ? '...'
-                      : dashboardData?.counts.departments ?? 0}
+                      : dashboardData?.counts?.departments ?? 0}
                   </h3>
-
                 </div>
 
                 {/* Doctors */}
-                <div className="bg-white rounded-xl shadow-sm p-6">
-
+                <div className="rounded-xl bg-white p-6 shadow-sm">
                   <p className="text-sm text-gray-500">
                     Total Doctors
                   </p>
 
-                  <h3 className="text-3xl font-bold text-gray-800 mt-2">
+                  <h3 className="mt-2 text-3xl font-bold text-gray-800">
                     {dashboardLoading
                       ? '...'
-                      : dashboardData?.counts.doctors ?? 0}
+                      : dashboardData?.counts?.doctors ?? 0}
                   </h3>
-
                 </div>
 
                 {/* Patients */}
-                <div className="bg-white rounded-xl shadow-sm p-6">
-
+                <div className="rounded-xl bg-white p-6 shadow-sm">
                   <p className="text-sm text-gray-500">
                     Total Patients
                   </p>
 
-                  <h3 className="text-3xl font-bold text-gray-800 mt-2">
+                  <h3 className="mt-2 text-3xl font-bold text-gray-800">
                     {dashboardLoading
                       ? '...'
-                      : dashboardData?.counts.patients ?? 0}
+                      : dashboardData?.counts?.patients ?? 0}
                   </h3>
-
                 </div>
 
                 {/* Appointments */}
-                <div className="bg-white rounded-xl shadow-sm p-6">
-
+                <div className="rounded-xl bg-white p-6 shadow-sm">
                   <p className="text-sm text-gray-500">
                     Today's Appointments
                   </p>
 
-                  <h3 className="text-3xl font-bold text-gray-800 mt-2">
+                  <h3 className="mt-2 text-3xl font-bold text-gray-800">
                     {dashboardLoading
                       ? '...'
-                      : dashboardData?.counts.appointments ?? 0}
+                      : dashboardData?.counts?.appointments ?? 0}
                   </h3>
-
                 </div>
 
               </div>
-
             </div>
-
           )}
 
           {/* Departments */}
-          {currentPage === 'departments' && (
-            <Departments />
-          )}
+          {currentPage === 'departments' && <Departments />}
 
-          {currentPage === 'doctors' && (
-            <Doctors />
-          )}
+          {/* Doctors */}
+          {currentPage === 'doctors' && <Doctors />}
 
-          {currentPage === 'patients' && (
-            <Patients />
-          )}
+          {/* Patients */}
+          {currentPage === 'patients' && <Patients />}
 
           {/* Appointments */}
-          {currentPage === 'appointments' && (
-            <Appointments />
+          {currentPage === 'appointments' && <Appointments />}
+
+          {/* Hospital Settings */}
+          {currentPage === 'hospital-settings' && user?.role === 'admin' && (
+            <HospitalSettings />
           )}
 
-          {currentPage === 'hospital-settings' && <HospitalSettings />}
-
+          {/* Profile */}
           {currentPage === 'profile' && <Profile />}
 
         </main>
-
       </div>
-
     </div>
   )
 }
