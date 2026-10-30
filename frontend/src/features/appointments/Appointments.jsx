@@ -1,20 +1,20 @@
 
 import { useCallback, useEffect, useState } from 'react'
-import api from './services/api'
+import api from '../../services/api'
 
-import Button from './components/ui/Button'
-import Input from './components/ui/Input'
-import Select from './components/ui/Select'
-import Card from './components/ui/Card'
-import Badge from './components/ui/Badge'
+import Button from '../../components/ui/Button'
+import Input from '../../components/ui/Input'
+import Select from '../../components/ui/Select'
+import Card from '../../components/ui/Card'
+import Badge from '../../components/ui/Badge'
 
-import Table from './components/common/Table'
-import Pagination from './components/common/Pagination'
-import SearchBar from './components/common/SearchBar'
-import Loader from './components/common/Loader'
-import Alert from './components/common/Alert'
-import Modal from './components/common/Modal'
-import ConfirmDialog from './components/common/ConfirmDialog'
+import Table from '../../components/common/Table'
+import Pagination from '../../components/common/Pagination'
+import SearchBar from '../../components/common/SearchBar'
+import Loader from '../../components/common/Loader'
+import Alert from '../../components/common/Alert'
+import Modal from '../../components/common/Modal'
+import ConfirmDialog from '../../components/common/ConfirmDialog'
 
 const STATUSES = [
   { value: 'scheduled', label: 'Scheduled' },
