@@ -80,16 +80,24 @@ class AppointmentController extends Controller
             100
         );
 
+        $appointments = $query
+            ->orderByDesc('appointment_date')
+            ->orderByDesc('appointment_time')
+            ->paginate($perPage);
+
         return response()->json([
             'success' => true,
-            'data' => $query->orderByDesc('appointment_date')
-                ->orderByDesc('appointment_time')
-                ->paginate($perPage),
+            'data' => $appointments,
         ]);
     }
 
-    public function today(): JsonResponse
+    public function today(Request $request): JsonResponse
     {
+        $perPage = min(
+            max((int) $request->input('per_page', 10), 1),
+            100
+        );
+
         $appointments = Appointment::with([
             'patient',
             'doctor',
@@ -97,7 +105,7 @@ class AppointmentController extends Controller
         ])
             ->whereDate('appointment_date', today())
             ->orderBy('appointment_time')
-            ->paginate(10);
+            ->paginate($perPage);
 
         return response()->json([
             'success' => true,
@@ -157,21 +165,50 @@ class AppointmentController extends Controller
         Request $request,
         Appointment $appointment
     ): JsonResponse {
-        $validated = $this->validateAppointment($request);
+        $isPatch = $request->isMethod('patch');
+
+        $validated = $this->validateAppointment(
+            $request,
+            $isPatch
+        );
 
         unset($validated['appointment_number']);
 
+        if (empty($validated)) {
+            throw ValidationException::withMessages([
+                'request' => [
+                    'Please provide at least one field to update.',
+                ],
+            ]);
+        }
+
+        // Combine existing values with supplied PATCH values.
+        // This ensures the booking rules are checked against the
+        // complete appointment, not only the fields being changed.
+        $effectiveValues = array_merge([
+            'patient_id' => $appointment->patient_id,
+            'doctor_id' => $appointment->doctor_id,
+            'department_id' => $appointment->department_id,
+            'appointment_date' => $appointment->getRawOriginal('appointment_date'),
+            'appointment_time' => $appointment->getRawOriginal('appointment_time'),
+            'reason' => $appointment->reason,
+            'notes' => $appointment->notes,
+            'status' => $appointment->status,
+        ], $validated);
+
         $this->ensureDoctorDepartment(
-            $validated['doctor_id'],
-            $validated['department_id']
+            $effectiveValues['doctor_id'],
+            $effectiveValues['department_id']
         );
 
-        $this->ensureSlotAvailable(
-            $validated['doctor_id'],
-            $validated['appointment_date'],
-            $validated['appointment_time'],
-            $appointment->id
-        );
+        if (in_array($effectiveValues['status'], ['scheduled', 'confirmed'], true)) {
+            $this->ensureSlotAvailable(
+                $effectiveValues['doctor_id'],
+                $effectiveValues['appointment_date'],
+                $effectiveValues['appointment_time'],
+                $appointment->id
+            );
+        }
 
         $appointment->update($validated);
 
@@ -188,8 +225,10 @@ class AppointmentController extends Controller
 
     public function destroy(Appointment $appointment): JsonResponse
     {
-        // Keep the record for history; release its slot.
-        $appointment->update(['status' => 'cancelled']);
+        // Preserve appointment history and release its active slot.
+        $appointment->update([
+            'status' => 'cancelled',
+        ]);
 
         return response()->json([
             'success' => true,
@@ -197,35 +236,39 @@ class AppointmentController extends Controller
         ]);
     }
 
-    private function validateAppointment(Request $request): array
-    {
+    private function validateAppointment(
+        Request $request,
+        bool $isPatch = false
+    ): array {
+        $required = $isPatch ? 'sometimes' : 'required';
+
         return $request->validate([
             'patient_id' => [
-                'required',
+                $required,
                 'integer',
                 'exists:patients,id',
             ],
             'doctor_id' => [
-                'required',
+                $required,
                 'integer',
                 'exists:doctors,id',
             ],
             'department_id' => [
-                'required',
+                $required,
                 'integer',
                 'exists:departments,id',
             ],
             'appointment_date' => [
-                'required',
+                $required,
                 'date_format:Y-m-d',
                 'after_or_equal:today',
             ],
             'appointment_time' => [
-                'required',
+                $required,
                 'date_format:H:i',
             ],
-            'reason' => ['nullable', 'string', 'max:2000'],
-            'notes' => ['nullable', 'string', 'max:5000'],
+            'reason' => ['sometimes', 'nullable', 'string', 'max:2000'],
+            'notes' => ['sometimes', 'nullable', 'string', 'max:5000'],
             'status' => [
                 'sometimes',
                 'required',

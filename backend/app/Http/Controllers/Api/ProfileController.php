@@ -10,10 +10,6 @@ use Illuminate\Support\Facades\Storage;
 
 class ProfileController extends Controller
 {
-    /**
-     * Get the authenticated user's profile.
-     */
-    
     public function show(Request $request)
     {
         $user = $request->user();
@@ -31,10 +27,6 @@ class ProfileController extends Controller
         ]);
     }
 
-
-    /**
-     * Update the authenticated user's profile.
-     */
     public function update(Request $request)
     {
         $user = $request->user();
@@ -60,7 +52,6 @@ class ProfileController extends Controller
         ]);
     }
 
-    
     public function updatePassword(Request $request)
     {
         $validated = $request->validate([
@@ -97,11 +88,6 @@ class ProfileController extends Controller
         ]);
     }
 
-
-    
-    /**
-     * Upload or replace the authenticated user's profile photo.
-     */
     public function uploadPhoto(Request $request)
     {
         $validated = $request->validate([
@@ -115,8 +101,6 @@ class ProfileController extends Controller
 
         $user = $request->user();
 
-        // Store the new photo first, so the existing one is preserved
-        // if the upload fails.
         $path = $validated['photo']->store('profile-photos', 'public');
 
         if (! $path) {
@@ -131,7 +115,6 @@ class ProfileController extends Controller
         $user->profile_photo_path = $path;
         $user->save();
 
-        // Delete the previous photo only after saving the new path.
         if ($oldPath && str_starts_with($oldPath, 'profile-photos/')) {
             Storage::disk('public')->delete($oldPath);
         }
@@ -142,14 +125,10 @@ class ProfileController extends Controller
             'data' => [
                 'profile_photo_path' => $path,
                 'profile_photo_url' => asset('storage/' . $path),
-                'profile_photo_url' => Storage::url($path),
             ],
         ]);
     }
 
-    /**
-     * Remove the authenticated user's profile photo.
-     */
     public function removePhoto(Request $request)
     {
         $user = $request->user();
@@ -167,6 +146,4 @@ class ProfileController extends Controller
             'message' => 'Profile photo removed successfully.',
         ]);
     }
-
-
 }

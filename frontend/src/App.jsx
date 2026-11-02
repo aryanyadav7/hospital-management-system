@@ -1,7 +1,7 @@
 
 import { useEffect, useState } from 'react'
 
-import api from './services/api'
+import api, { setUnauthorizedHandler } from './services/api'
 
 // Layout
 import MainLayout from './components/layout/MainLayout'
@@ -30,6 +30,27 @@ function App() {
   const [dashboardLoading, setDashboardLoading] = useState(true)
 
   const [user, setUser] = useState(null)
+
+  /*
+  * Handle expired authentication sessions globally.
+  */
+  useEffect(() => {
+    setUnauthorizedHandler(() => {
+      localStorage.removeItem('token')
+      localStorage.removeItem('user')
+
+      setUser(null)
+      setDashboardData(null)
+      setDashboardLoading(false)
+      setIsLoggedIn(false)
+      setShowRegister(false)
+      setCurrentPage('dashboard')
+    })
+
+    return () => {
+      setUnauthorizedHandler(null)
+    }
+  }, [])
 
   /*
    * Restore login session after page reload.

@@ -1,3 +1,4 @@
+
 <?php
 
 use App\Http\Controllers\Api\Auth\AuthController;
@@ -30,31 +31,37 @@ Route::prefix('v1')->group(function () {
 
     Route::middleware(['auth:sanctum', 'role:admin'])->group(function () {
 
+        // Departments
         Route::prefix('departments')->group(function () {
             Route::get('/', [DepartmentController::class, 'index']);
             Route::post('/', [DepartmentController::class, 'store']);
             Route::get('/{department}', [DepartmentController::class, 'show']);
             Route::put('/{department}', [DepartmentController::class, 'update']);
+            Route::patch('/{department}', [DepartmentController::class, 'update']);
             Route::delete('/{department}', [DepartmentController::class, 'destroy']);
         });
 
+        // Doctors
         Route::prefix('doctors')->group(function () {
             Route::get('/', [DoctorController::class, 'index']);
             Route::post('/', [DoctorController::class, 'store']);
             Route::get('/{doctor}', [DoctorController::class, 'show']);
             Route::put('/{doctor}', [DoctorController::class, 'update']);
+            Route::patch('/{doctor}', [DoctorController::class, 'update']);
             Route::delete('/{doctor}', [DoctorController::class, 'destroy']);
         });
 
+        // Patients
         Route::prefix('patients')->group(function () {
             Route::get('/', [PatientController::class, 'index']);
             Route::post('/', [PatientController::class, 'store']);
             Route::get('/{patient}', [PatientController::class, 'show']);
             Route::put('/{patient}', [PatientController::class, 'update']);
+            Route::patch('/{patient}', [PatientController::class, 'update']);
             Route::delete('/{patient}', [PatientController::class, 'destroy']);
         });
 
-        
+        // Appointments
         Route::prefix('appointments')->group(function () {
             // Keep this route before /{appointment}.
             Route::get('/today', [AppointmentController::class, 'today']);
@@ -63,16 +70,16 @@ Route::prefix('v1')->group(function () {
             Route::post('/', [AppointmentController::class, 'store']);
             Route::get('/{appointment}', [AppointmentController::class, 'show']);
             Route::put('/{appointment}', [AppointmentController::class, 'update']);
+            Route::patch('/{appointment}', [AppointmentController::class, 'update']);
             Route::delete('/{appointment}', [AppointmentController::class, 'destroy']);
         });
 
+        // Hospital Settings
         Route::prefix('hospital-settings')->group(function () {
             Route::put('/', [HospitalSettingController::class, 'update']);
             Route::post('/logo', [HospitalSettingController::class, 'uploadLogo']);
             Route::delete('/logo', [HospitalSettingController::class, 'removeLogo']);
         });
-
-
     });
 
     /*
@@ -112,7 +119,6 @@ Route::prefix('v1')->group(function () {
     */
 
     Route::prefix('auth')->group(function () {
-
         Route::post('/register', [AuthController::class, 'register']);
         Route::post('/login', [AuthController::class, 'login']);
 
@@ -133,7 +139,6 @@ Route::prefix('v1')->group(function () {
                 'message' => 'Logout successful',
             ]);
         });
-
     });
-
 });
+

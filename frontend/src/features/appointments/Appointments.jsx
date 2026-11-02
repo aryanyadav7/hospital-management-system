@@ -58,7 +58,9 @@ function messageFrom(error) {
     return Object.values(validationErrors).flat().join(' ')
   }
 
-  return error?.message || 'Something went wrong. Please try again.'
+  return error?.data?.message ||
+    error?.message ||
+    'Something went wrong. Please try again.'
 }
 
 function unwrap(response) {
@@ -105,7 +107,9 @@ function showTime(value) {
 }
 
 function statusLabel(status) {
-  return STATUSES.find((item) => item.value === status)?.label || status || 'Unknown'
+  return STATUSES.find((item) => item.value === status)?.label ||
+    status ||
+    'Unknown'
 }
 
 function isActive(record) {
@@ -139,7 +143,8 @@ export default function Appointments() {
   const [dateFilter, setDateFilter] = useState('')
   const [todayOnly, setTodayOnly] = useState(false)
 
-  const [form, setForm] = useState(EMPTY_FORM)
+  const [form, setForm] = useState({ ...EMPTY_FORM })
+  const [fieldErrors, setFieldErrors] = useState({})
   const [editingId, setEditingId] = useState(null)
   const [showForm, setShowForm] = useState(false)
   const [viewing, setViewing] = useState(null)
@@ -153,6 +158,29 @@ export default function Appointments() {
   const [error, setError] = useState('')
   const [success, setSuccess] = useState('')
 
+  const clearFieldError = (name) => {
+    setFieldErrors((current) => {
+      if (!current[name]) return current
+
+      const updated = { ...current }
+      delete updated[name]
+
+      return updated
+    })
+  }
+
+  const renderFieldError = (name) => {
+    if (!fieldErrors[name]) return null
+
+    return (
+      <p className="mt-1 text-sm text-red-600">
+        {Array.isArray(fieldErrors[name])
+          ? fieldErrors[name].join(' ')
+          : fieldErrors[name]}
+      </p>
+    )
+  }
+
   const loadReferenceData = useCallback(async () => {
     try {
       const [patientsResponse, doctorsResponse, departmentsResponse] =
@@ -162,10 +190,19 @@ export default function Appointments() {
           api.get('/departments?per_page=100'),
         ])
 
+      if (
+        !patientsResponse.success ||
+        !doctorsResponse.success ||
+        !departmentsResponse.success
+      ) {
+        throw new Error('Unable to load appointment reference data.')
+      }
+
       setPatients(unwrap(patientsResponse))
       setDoctors(unwrap(doctorsResponse))
       setDepartments(unwrap(departmentsResponse))
     } catch (err) {
+      console.error('Load appointment reference data error:', err)
       setError(messageFrom(err))
     }
   }, [])
@@ -191,6 +228,13 @@ export default function Appointments() {
         : `/appointments?${params.toString()}`
 
       const response = await api.get(endpoint)
+
+      if (!response.success) {
+        throw new Error(
+          response.message || 'Unable to fetch appointments.'
+        )
+      }
+
       const data = response?.data
 
       setAppointments(
@@ -207,6 +251,7 @@ export default function Appointments() {
         total: data?.total ?? 0,
       })
     } catch (err) {
+      console.error('Load appointments error:', err)
       setAppointments([])
       setError(messageFrom(err))
     } finally {
@@ -266,17 +311,76 @@ export default function Appointments() {
 
       return next
     })
+
+    clearFieldError(name)
+
+    if (name === 'department_id') {
+      clearFieldError('doctor_id')
+    }
+
+    if (name === 'doctor_id') {
+      clearFieldError('department_id')
+    }
+
+    setError('')
+  }
+
+  function updateSelectField(name, value) {
+    const inputValue = getInputValue(value)
+
+    setForm((previous) => {
+      const next = { ...previous, [name]: inputValue }
+
+      if (name === 'doctor_id' && inputValue) {
+        const doctor = doctors.find(
+          (item) => String(item.id) === String(inputValue)
+        )
+
+        if (doctor) {
+          next.department_id = String(doctor.department_id)
+        }
+      }
+
+      if (name === 'department_id' && previous.doctor_id) {
+        const doctor = doctors.find(
+          (item) => String(item.id) === String(previous.doctor_id)
+        )
+
+        if (
+          doctor &&
+          String(doctor.department_id) !== String(inputValue)
+        ) {
+          next.doctor_id = ''
+        }
+      }
+
+      return next
+    })
+
+    clearFieldError(name)
+
+    if (name === 'department_id') {
+      clearFieldError('doctor_id')
+    }
+
+    if (name === 'doctor_id') {
+      clearFieldError('department_id')
+    }
+
+    setError('')
   }
 
   function closeForm() {
     setShowForm(false)
     setEditingId(null)
     setForm({ ...EMPTY_FORM })
+    setFieldErrors({})
   }
 
   function createNew() {
     setError('')
     setSuccess('')
+    setFieldErrors({})
     setViewing(null)
     setEditingId(null)
     setForm({ ...EMPTY_FORM })
@@ -286,6 +390,7 @@ export default function Appointments() {
   function editAppointment(appointment) {
     setError('')
     setSuccess('')
+    setFieldErrors({})
     setViewing(null)
     setEditingId(appointment.id)
 
@@ -309,6 +414,7 @@ export default function Appointments() {
     setSaving(true)
     setError('')
     setSuccess('')
+    setFieldErrors({})
 
     try {
       const payload = {
@@ -322,6 +428,12 @@ export default function Appointments() {
         ? await api.put(`/appointments/${editingId}`, payload)
         : await api.post('/appointments', payload)
 
+      if (!response.success) {
+        throw new Error(
+          response.message || 'Unable to save appointment.'
+        )
+      }
+
       setSuccess(response?.message || 'Appointment saved successfully.')
       closeForm()
 
@@ -331,7 +443,20 @@ export default function Appointments() {
         await loadAppointments()
       }
     } catch (err) {
-      setError(messageFrom(err))
+      console.error('Save appointment error:', err)
+
+      const errors = err?.errors || err?.data?.errors || {}
+
+      if (
+        err?.isValidationError ||
+        err?.status === 422 ||
+        Object.keys(errors).length > 0
+      ) {
+        setFieldErrors(errors)
+        setError('Please correct the highlighted fields.')
+      } else {
+        setError(messageFrom(err))
+      }
     } finally {
       setSaving(false)
     }
@@ -349,11 +474,16 @@ export default function Appointments() {
     try {
       const response = await api.delete(`/appointments/${appointment.id}`)
 
+      if (!response.success) {
+        throw new Error(response.message || 'Unable to cancel appointment.')
+      }
+
       setSuccess(response?.message || 'Appointment cancelled.')
       setAppointmentToCancel(null)
 
       await loadAppointments()
     } catch (err) {
+      console.error('Cancel appointment error:', err)
       setError(messageFrom(err))
     } finally {
       setCancelingId(null)
@@ -384,9 +514,14 @@ export default function Appointments() {
         payload
       )
 
+      if (!response.success) {
+        throw new Error(response.message || 'Unable to update appointment status.')
+      }
+
       setSuccess(response?.message || 'Appointment status updated.')
       await loadAppointments()
     } catch (err) {
+      console.error('Update appointment status error:', err)
       setError(messageFrom(err))
     } finally {
       setUpdatingStatusId(null)
@@ -607,36 +742,44 @@ export default function Appointments() {
             onSubmit={saveAppointment}
             className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-3"
           >
-            <Select
-              label="Patient *"
-              name="patient_id"
-              value={form.patient_id}
-              onChange={updateForm}
-              options={patientOptions}
-              required
-              disabled={saving}
-            />
+            <div>
+              <Select
+                label="Patient *"
+                name="patient_id"
+                value={form.patient_id}
+                onChange={(value) => updateSelectField('patient_id', value)}
+                options={patientOptions}
+                required
+                disabled={saving}
+              />
+              {renderFieldError('patient_id')}
+            </div>
 
-            <Select
-              label="Department *"
-              name="department_id"
-              value={form.department_id}
-              onChange={updateForm}
-              options={departmentOptions}
-              required
-              disabled={saving}
-            />
+            <div>
+              <Select
+                label="Department *"
+                name="department_id"
+                value={form.department_id}
+                onChange={(value) => updateSelectField('department_id', value)}
+                options={departmentOptions}
+                required
+                disabled={saving}
+              />
+              {renderFieldError('department_id')}
+            </div>
 
             <div>
               <Select
                 label="Doctor *"
                 name="doctor_id"
                 value={form.doctor_id}
-                onChange={updateForm}
+                onChange={(value) => updateSelectField('doctor_id', value)}
                 options={doctorOptions}
                 required
                 disabled={saving}
               />
+
+              {renderFieldError('doctor_id')}
 
               {form.department_id && eligibleDoctors.length === 0 && (
                 <p className="mt-1 text-xs text-amber-700">
@@ -645,35 +788,44 @@ export default function Appointments() {
               )}
             </div>
 
-            <Input
-              label="Appointment date *"
-              name="appointment_date"
-              type="date"
-              value={form.appointment_date}
-              onChange={updateForm}
-              required
-              disabled={saving}
-              min={new Date().toLocaleDateString('en-CA')}
-            />
+            <div>
+              <Input
+                label="Appointment date *"
+                name="appointment_date"
+                type="date"
+                value={form.appointment_date}
+                onChange={updateForm}
+                required
+                disabled={saving}
+                min={new Date().toLocaleDateString('en-CA')}
+              />
+              {renderFieldError('appointment_date')}
+            </div>
 
-            <Input
-              label="Appointment time *"
-              name="appointment_time"
-              type="time"
-              value={form.appointment_time}
-              onChange={updateForm}
-              required
-              disabled={saving}
-            />
+            <div>
+              <Input
+                label="Appointment time *"
+                name="appointment_time"
+                type="time"
+                value={form.appointment_time}
+                onChange={updateForm}
+                required
+                disabled={saving}
+              />
+              {renderFieldError('appointment_time')}
+            </div>
 
-            <Select
-              label="Status"
-              name="status"
-              value={form.status}
-              onChange={updateForm}
-              options={formStatusOptions}
-              disabled={saving}
-            />
+            <div>
+              <Select
+                label="Status"
+                name="status"
+                value={form.status}
+                onChange={(value) => updateSelectField('status', value)}
+                options={formStatusOptions}
+                disabled={saving}
+              />
+              {renderFieldError('status')}
+            </div>
 
             <div className="md:col-span-2 xl:col-span-3">
               <Input
@@ -684,6 +836,7 @@ export default function Appointments() {
                 placeholder="e.g. General consultation"
                 disabled={saving}
               />
+              {renderFieldError('reason')}
             </div>
 
             <div className="md:col-span-2 xl:col-span-3">
@@ -704,6 +857,7 @@ export default function Appointments() {
                 disabled={saving}
                 className="w-full rounded-lg border border-gray-300 px-3 py-2.5 text-sm focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500 disabled:bg-gray-100"
               />
+              {renderFieldError('notes')}
             </div>
 
             <div className="flex flex-wrap gap-3 md:col-span-2 xl:col-span-3">

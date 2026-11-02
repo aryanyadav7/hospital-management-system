@@ -18,10 +18,10 @@ class DoctorController extends Controller
 
             $query->where(function ($q) use ($search) {
                 $q->where('name', 'like', "%{$search}%")
-                ->orWhere('email', 'like', "%{$search}%")
-                ->orWhere('phone', 'like', "%{$search}%")
-                ->orWhere('specialization', 'like', "%{$search}%")
-                ->orWhere('qualification', 'like', "%{$search}%");
+                    ->orWhere('email', 'like', "%{$search}%")
+                    ->orWhere('phone', 'like', "%{$search}%")
+                    ->orWhere('specialization', 'like', "%{$search}%")
+                    ->orWhere('qualification', 'like', "%{$search}%");
             });
         }
 
@@ -33,9 +33,12 @@ class DoctorController extends Controller
             $query->where('status', $request->input('status'));
         }
 
-        $doctors = $query
-            ->latest()
-            ->paginate(5);
+        $perPage = min(
+            max((int) $request->input('per_page', 5), 1),
+            100
+        );
+
+        $doctors = $query->latest()->paginate($perPage);
 
         return response()->json([
             'success' => true,
@@ -94,38 +97,65 @@ class DoctorController extends Controller
 
     public function update(Request $request, Doctor $doctor): JsonResponse
     {
+        $isPatch = $request->isMethod('patch');
+
+        $required = $isPatch ? 'sometimes' : 'required';
+
         $validated = $request->validate([
-            'department_id' => ['required', 'exists:departments,id'],
-            'name' => ['required', 'string', 'max:255'],
+            'department_id' => [$required, 'exists:departments,id'],
+            'name' => [$required, 'string', 'max:255'],
             'email' => [
-                'required',
+                $required,
                 'email',
                 'unique:doctors,email,' . $doctor->id,
             ],
-            'phone' => ['required', 'string', 'max:20'],
-            'specialization' => ['required', 'string', 'max:255'],
-            'experience' => ['required', 'integer', 'min:0'],
-            'qualification' => ['required', 'string', 'max:255'],
-            'gender' => ['required', 'string', 'in:male,female,other'],
-            'date_of_birth' => ['nullable', 'date'],
-            'address' => ['nullable', 'string'],
+            'phone' => [$required, 'string', 'max:20'],
+            'specialization' => [$required, 'string', 'max:255'],
+            'experience' => [$required, 'integer', 'min:0'],
+            'qualification' => [$required, 'string', 'max:255'],
+            'gender' => [$required, 'string', 'in:male,female,other'],
+            'date_of_birth' => ['sometimes', 'nullable', 'date'],
+            'address' => ['sometimes', 'nullable', 'string'],
             'status' => ['sometimes', 'boolean'],
         ]);
 
-        $doctor->update([
-            'department_id' => $validated['department_id'],
-            'name' => $validated['name'],
-            'email' => $validated['email'],
-            'phone' => $validated['phone'],
-            'specialization' => $validated['specialization'],
-            'experience' => $validated['experience'],
-            'qualification' => $validated['qualification'],
-            'gender' => $validated['gender'],
-            'date_of_birth' => $validated['date_of_birth'] ?? null,
-            'address' => $validated['address'] ?? null,
-            'status' => $validated['status'] ?? $doctor->status,
-        ]);
+        if (empty($validated)) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Please provide at least one field to update.',
+            ], 422);
+        }
 
+        if (isset($validated['department_id'])) {
+            $departmentId = $validated['department_id'];
+        } else {
+            $departmentId = $doctor->department_id;
+        }
+
+        if ((int) $departmentId !== (int) $doctor->department_id) {
+            // The doctor can be reassigned to another existing department.
+            // The exists rule above validates the supplied department.
+        }
+
+        if ($isPatch) {
+            $doctor->fill($validated);
+        } else {
+            $doctor->fill([
+                'department_id' => $validated['department_id'],
+                'name' => $validated['name'],
+                'email' => $validated['email'],
+                'phone' => $validated['phone'],
+                'specialization' => $validated['specialization'],
+                'experience' => $validated['experience'],
+                'qualification' => $validated['qualification'],
+                'gender' => $validated['gender'],
+                'date_of_birth' => $validated['date_of_birth'] ?? null,
+                'address' => $validated['address'] ?? null,
+                'status' => $validated['status'] ?? $doctor->status,
+            ]);
+        }
+
+        $doctor->save();
         $doctor->load('department');
 
         return response()->json([

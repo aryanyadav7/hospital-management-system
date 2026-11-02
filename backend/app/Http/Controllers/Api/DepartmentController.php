@@ -75,24 +75,38 @@ class DepartmentController extends Controller
      */
     public function update(Request $request, Department $department): JsonResponse
     {
+        $isPatch = $request->isMethod('PATCH');
+
         $validated = $request->validate([
-            'name' => ['required', 'string', 'max:255'],
-            'description' => ['nullable', 'string'],
+            'name' => [
+                ...($isPatch ? ['sometimes'] : ['required']),
+                'string',
+                'max:255',
+            ],
+            'description' => [
+                ...($isPatch ? ['sometimes'] : []),
+                'nullable',
+                'string',
+            ],
             'status' => ['sometimes', 'boolean'],
         ]);
 
-        $department->update([
-            'name' => $validated['name'],
-            'description' => $validated['description'] ?? null,
-            'status' => $validated['status'] ?? $department->status,
-        ]);
+        if ($isPatch && empty($validated)) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Please provide at least one field to update.',
+            ], 422);
+        }
+
+        $department->update($validated);
 
         return response()->json([
             'success' => true,
             'message' => 'Department updated successfully',
-            'data' => $department,
+            'data' => $department->fresh(),
         ]);
     }
+
 
     /**
      * Remove the specified department.

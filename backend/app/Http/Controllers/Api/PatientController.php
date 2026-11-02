@@ -37,7 +37,12 @@ class PatientController extends Controller
             $query->where('status', $request->input('status'));
         }
 
-        $patients = $query->latest()->paginate(5);
+        $perPage = min(
+            max((int) $request->input('per_page', 5), 1),
+            100
+        );
+
+        $patients = $query->latest()->paginate($perPage);
 
         return response()->json([
             'success' => true,
@@ -72,7 +77,7 @@ class PatientController extends Controller
             'status' => $validated['status'] ?? true,
         ]);
 
-        // Generate a readable, unique ID from the database primary key.
+        // Generate a readable ID from the database primary key.
         $patient->patient_id = 'PAT-' . str_pad(
             (string) $patient->id,
             6,
@@ -99,26 +104,54 @@ class PatientController extends Controller
 
     public function update(Request $request, Patient $patient): JsonResponse
     {
+        $isPatch = $request->isMethod('patch');
+
+        $required = $isPatch ? 'sometimes' : 'required';
+
         $validated = $request->validate([
-            'name' => ['required', 'string', 'max:255'],
+            'name' => [$required, 'string', 'max:255'],
             'email' => [
+                $isPatch ? 'sometimes' : 'required',
                 'nullable',
                 'email',
                 'max:255',
                 Rule::unique('patients', 'email')->ignore($patient->id),
             ],
-            'phone' => ['required', 'string', 'max:20'],
-            'date_of_birth' => ['nullable', 'date', 'before:today'],
-            'gender' => ['required', 'in:male,female,other'],
+            'phone' => [$required, 'string', 'max:20'],
+            'date_of_birth' => [
+                'sometimes',
+                'nullable',
+                'date',
+                'before:today',
+            ],
+            'gender' => [$required, 'in:male,female,other'],
             'blood_group' => [
+                'sometimes',
                 'nullable',
                 'in:A+,A-,B+,B-,AB+,AB-,O+,O-',
             ],
-            'address' => ['nullable', 'string'],
-            'emergency_contact_name' => ['nullable', 'string', 'max:255'],
-            'emergency_contact_phone' => ['nullable', 'string', 'max:20'],
+            'address' => ['sometimes', 'nullable', 'string'],
+            'emergency_contact_name' => [
+                'sometimes',
+                'nullable',
+                'string',
+                'max:255',
+            ],
+            'emergency_contact_phone' => [
+                'sometimes',
+                'nullable',
+                'string',
+                'max:20',
+            ],
             'status' => ['sometimes', 'boolean'],
         ]);
+
+        if (empty($validated)) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Please provide at least one field to update.',
+            ], 422);
+        }
 
         // Keep patient_id immutable during updates.
         unset($validated['patient_id']);

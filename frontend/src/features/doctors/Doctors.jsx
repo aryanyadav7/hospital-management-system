@@ -39,7 +39,10 @@ function getErrorMessage(data, fallback) {
 }
 
 function getRequestError(error, fallback) {
-  return getErrorMessage(error?.data, error?.message || fallback)
+  return getErrorMessage(
+    error?.data || { message: error?.message },
+    fallback
+  )
 }
 
 function getStatus(value) {
@@ -68,6 +71,7 @@ function Doctors() {
   const [doctorToDelete, setDoctorToDelete] = useState(null)
 
   const [form, setForm] = useState(emptyForm)
+  const [fieldErrors, setFieldErrors] = useState({})
 
   const [search, setSearch] = useState('')
   const [departmentFilter, setDepartmentFilter] = useState('')
@@ -155,6 +159,7 @@ function Doctors() {
 
   const resetForm = () => {
     setForm({ ...emptyForm })
+    setFieldErrors({})
     setEditingDoctorId(null)
     setShowForm(false)
   }
@@ -162,6 +167,7 @@ function Doctors() {
   const openAddForm = () => {
     setError('')
     setSuccess('')
+    setFieldErrors({})
     setViewingDoctor(null)
     setForm({ ...emptyForm })
     setEditingDoctorId(null)
@@ -171,6 +177,7 @@ function Doctors() {
   const openEditForm = (doctor) => {
     setError('')
     setSuccess('')
+    setFieldErrors({})
     setViewingDoctor(null)
 
     setEditingDoctorId(doctor.id)
@@ -194,6 +201,17 @@ function Doctors() {
     setShowForm(true)
   }
 
+  const clearFieldError = (name) => {
+    setFieldErrors((current) => {
+      if (!current[name]) return current
+
+      const updated = { ...current }
+      delete updated[name]
+
+      return updated
+    })
+  }
+
   const updateField = (event) => {
     const { name, value, type, checked } = event.target
 
@@ -201,6 +219,19 @@ function Doctors() {
       ...current,
       [name]: type === 'checkbox' ? checked : value,
     }))
+
+    clearFieldError(name)
+    setError('')
+  }
+
+  const updateSelectField = (name, value) => {
+    setForm((current) => ({
+      ...current,
+      [name]: getInputValue(value),
+    }))
+
+    clearFieldError(name)
+    setError('')
   }
 
   const handleSaveDoctor = async (event) => {
@@ -210,6 +241,7 @@ function Doctors() {
       setSaving(true)
       setError('')
       setSuccess('')
+      setFieldErrors({})
 
       const isEditing = editingDoctorId !== null
 
@@ -246,9 +278,19 @@ function Doctors() {
       await fetchDoctors()
     } catch (err) {
       console.error('Save doctor error:', err)
-      setError(
-        getRequestError(err, 'Unable to save doctor.')
-      )
+
+      const errors = err?.errors || err?.data?.errors || {}
+
+      if (
+        err?.isValidationError ||
+        err?.status === 422 ||
+        Object.keys(errors).length > 0
+      ) {
+        setFieldErrors(errors)
+        setError('Please correct the highlighted fields.')
+      } else {
+        setError(getRequestError(err, 'Unable to save doctor.'))
+      }
     } finally {
       setSaving(false)
     }
@@ -282,9 +324,7 @@ function Doctors() {
       }
     } catch (err) {
       console.error('Delete doctor error:', err)
-      setError(
-        getRequestError(err, 'Unable to delete doctor.')
-      )
+      setError(getRequestError(err, 'Unable to delete doctor.'))
     } finally {
       setDeletingId(null)
     }
@@ -409,6 +449,15 @@ function Doctors() {
         ['Address', viewingDoctor.address || 'Not provided'],
       ]
     : []
+
+  const renderFieldError = (name) =>
+    fieldErrors[name] ? (
+      <p className="mt-1 text-sm text-red-600">
+        {Array.isArray(fieldErrors[name])
+          ? fieldErrors[name].join(' ')
+          : fieldErrors[name]}
+      </p>
+    ) : null
 
   return (
     <div className="space-y-6">
@@ -537,121 +586,141 @@ function Doctors() {
       >
         <form onSubmit={handleSaveDoctor}>
           <div className="grid grid-cols-1 gap-5 md:grid-cols-2">
-            <Input
-              label="Name *"
-              name="name"
-              value={form.name}
-              onChange={updateField}
-              required
-              placeholder="Dr. John Doe"
-            />
-
-            <Input
-              label="Email *"
-              name="email"
-              type="email"
-              value={form.email}
-              onChange={updateField}
-              required
-              placeholder="doctor@example.com"
-            />
-
-            <Input
-              label="Phone *"
-              name="phone"
-              type="tel"
-              value={form.phone}
-              onChange={updateField}
-              required
-              placeholder="9876543210"
-            />
-
-            <Select
-              label="Department *"
-              name="department_id"
-              value={form.department_id}
-              onChange={(value) => {
-                setForm((current) => ({
-                  ...current,
-                  department_id: getInputValue(value),
-                }))
-              }}
-              options={departmentOptions}
-              placeholder={
-                departmentsLoading
-                  ? 'Loading departments...'
-                  : 'Select Department'
-              }
-              required
-              disabled={departmentsLoading || departments.length === 0}
-            />
-
-            <Input
-              label="Specialization *"
-              name="specialization"
-              value={form.specialization}
-              onChange={updateField}
-              required
-              placeholder="Cardiologist"
-            />
-
-            <Input
-              label="Experience (years) *"
-              name="experience"
-              type="number"
-              value={form.experience}
-              onChange={updateField}
-              required
-              placeholder="5"
-            />
-
-            <Input
-              label="Qualification *"
-              name="qualification"
-              value={form.qualification}
-              onChange={updateField}
-              required
-              placeholder="MBBS, MD"
-            />
-
-            <Select
-              label="Gender *"
-              name="gender"
-              value={form.gender}
-              onChange={(value) => {
-                setForm((current) => ({
-                  ...current,
-                  gender: getInputValue(value),
-                }))
-              }}
-              options={genderOptions}
-              required
-            />
-
-            <Input
-              label="Date of birth"
-              name="date_of_birth"
-              type="date"
-              value={form.date_of_birth}
-              onChange={updateField}
-            />
-
-            <div className="flex items-center gap-3 pt-6">
-              <input
-                id="doctor-status"
-                name="status"
-                type="checkbox"
-                checked={form.status}
+            <div>
+              <Input
+                label="Name *"
+                name="name"
+                value={form.name}
                 onChange={updateField}
-                className="h-4 w-4 rounded border-gray-300"
+                required
+                placeholder="Dr. John Doe"
               />
+              {renderFieldError('name')}
+            </div>
 
-              <label
-                htmlFor="doctor-status"
-                className="text-sm font-medium text-gray-700"
-              >
-                Active Doctor
-              </label>
+            <div>
+              <Input
+                label="Email *"
+                name="email"
+                type="email"
+                value={form.email}
+                onChange={updateField}
+                required
+                placeholder="doctor@example.com"
+              />
+              {renderFieldError('email')}
+            </div>
+
+            <div>
+              <Input
+                label="Phone *"
+                name="phone"
+                type="tel"
+                value={form.phone}
+                onChange={updateField}
+                required
+                placeholder="9876543210"
+              />
+              {renderFieldError('phone')}
+            </div>
+
+            <div>
+              <Select
+                label="Department *"
+                name="department_id"
+                value={form.department_id}
+                onChange={(value) => updateSelectField('department_id', value)}
+                options={departmentOptions}
+                placeholder={
+                  departmentsLoading
+                    ? 'Loading departments...'
+                    : 'Select Department'
+                }
+                required
+                disabled={departmentsLoading || departments.length === 0}
+              />
+              {renderFieldError('department_id')}
+            </div>
+
+            <div>
+              <Input
+                label="Specialization *"
+                name="specialization"
+                value={form.specialization}
+                onChange={updateField}
+                required
+                placeholder="Cardiologist"
+              />
+              {renderFieldError('specialization')}
+            </div>
+
+            <div>
+              <Input
+                label="Experience (years) *"
+                name="experience"
+                type="number"
+                value={form.experience}
+                onChange={updateField}
+                required
+                placeholder="5"
+              />
+              {renderFieldError('experience')}
+            </div>
+
+            <div>
+              <Input
+                label="Qualification *"
+                name="qualification"
+                value={form.qualification}
+                onChange={updateField}
+                required
+                placeholder="MBBS, MD"
+              />
+              {renderFieldError('qualification')}
+            </div>
+
+            <div>
+              <Select
+                label="Gender *"
+                name="gender"
+                value={form.gender}
+                onChange={(value) => updateSelectField('gender', value)}
+                options={genderOptions}
+                required
+              />
+              {renderFieldError('gender')}
+            </div>
+
+            <div>
+              <Input
+                label="Date of birth"
+                name="date_of_birth"
+                type="date"
+                value={form.date_of_birth}
+                onChange={updateField}
+              />
+              {renderFieldError('date_of_birth')}
+            </div>
+
+            <div>
+              <div className="flex items-center gap-3 pt-6">
+                <input
+                  id="doctor-status"
+                  name="status"
+                  type="checkbox"
+                  checked={form.status}
+                  onChange={updateField}
+                  className="h-4 w-4 rounded border-gray-300"
+                />
+
+                <label
+                  htmlFor="doctor-status"
+                  className="text-sm font-medium text-gray-700"
+                >
+                  Active Doctor
+                </label>
+              </div>
+              {renderFieldError('status')}
             </div>
 
             <div className="md:col-span-2">
@@ -671,6 +740,7 @@ function Doctors() {
                 className="w-full rounded-lg border border-gray-300 px-3 py-2 focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
                 placeholder="Doctor's address"
               />
+              {renderFieldError('address')}
             </div>
           </div>
 

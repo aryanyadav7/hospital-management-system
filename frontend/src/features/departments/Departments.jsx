@@ -31,6 +31,7 @@ function Departments() {
   const [search, setSearch] = useState('')
   const [error, setError] = useState('')
   const [success, setSuccess] = useState('')
+  const [fieldErrors, setFieldErrors] = useState({})
 
   const [currentPage, setCurrentPage] = useState(1)
   const [lastPage, setLastPage] = useState(1)
@@ -62,6 +63,7 @@ function Departments() {
         setLastPage(data.data.last_page || 1)
       } catch (err) {
         console.error('Departments error:', err)
+
         setError(err.message || 'Unable to load departments.')
       } finally {
         setLoading(false)
@@ -74,19 +76,25 @@ function Departments() {
     fetchDepartments(1, '')
   }, []) // Initial load only.
 
+  // Reset form and validation errors.
   const resetForm = () => {
     setForm(EMPTY_FORM)
     setEditingDepartment(null)
+    setFieldErrors({})
   }
 
+  // Open create form.
   const openCreateForm = () => {
     resetForm()
     setError('')
+    setSuccess('')
     setShowForm(true)
   }
 
+  // Open edit form.
   const openEditForm = (department) => {
     setEditingDepartment(department)
+
     setForm({
       name: department.name || '',
       description: department.description || '',
@@ -95,20 +103,32 @@ function Departments() {
         department.status === 1 ||
         department.status === '1',
     })
+
+    setFieldErrors({})
     setError('')
+    setSuccess('')
     setShowForm(true)
   }
 
+  // Close form.
   const closeForm = () => {
     setShowForm(false)
     resetForm()
   }
 
+  // Handle form changes and clear the corrected field error.
   const handleFormChange = (field, value) => {
     setForm((previous) => ({
       ...previous,
       [field]: value,
     }))
+
+    setFieldErrors((previous) => ({
+      ...previous,
+      [field]: [],
+    }))
+
+    setError('')
   }
 
   // Create or update a department.
@@ -117,6 +137,7 @@ function Departments() {
 
     setError('')
     setSuccess('')
+    setFieldErrors({})
     setSaving(true)
 
     try {
@@ -154,15 +175,18 @@ function Departments() {
     } catch (err) {
       console.error('Save department error:', err)
 
-      const validationMessage = err.data?.errors
-        ? Object.values(err.data.errors).flat().join(' ')
-        : ''
+      const validationErrors =
+        err.errors || err.data?.errors || {}
 
-      setError(
-        validationMessage ||
-          err.message ||
-          'Unable to save department.'
-      )
+      if (
+        err.isValidationError ||
+        Object.keys(validationErrors).length > 0
+      ) {
+        setFieldErrors(validationErrors)
+        setError('Please correct the highlighted fields.')
+      } else {
+        setError(err.message || 'Unable to save department.')
+      }
     } finally {
       setSaving(false)
     }
@@ -196,21 +220,25 @@ function Departments() {
       await fetchDepartments(nextPage, search)
     } catch (err) {
       console.error('Delete department error:', err)
+
       setError(err.message || 'Unable to delete department.')
     } finally {
       setDeleting(false)
     }
   }
 
+  // Search departments.
   const handleSearch = () => {
     fetchDepartments(1, search)
   }
 
+  // Clear search.
   const handleClearSearch = () => {
     setSearch('')
     fetchDepartments(1, '')
   }
 
+  // Department table columns.
   const columns = [
     {
       key: 'name',
@@ -220,6 +248,7 @@ function Departments() {
           <p className="font-semibold text-gray-800">
             {department.name}
           </p>
+
           <p className="mt-1 text-sm text-gray-500">
             {department.description || 'No description available.'}
           </p>
@@ -267,6 +296,7 @@ function Departments() {
     },
   ]
 
+  // Initial loading state.
   if (loading && departments.length === 0) {
     return (
       <Card title="Departments">
@@ -277,6 +307,7 @@ function Departments() {
 
   return (
     <div className="space-y-6">
+
       {/* Notifications */}
       {error && (
         <Alert
@@ -304,6 +335,7 @@ function Departments() {
           <h1 className="text-2xl font-bold text-gray-800">
             Departments
           </h1>
+
           <p className="mt-2 text-gray-600">
             Manage hospital departments.
           </p>
@@ -367,18 +399,29 @@ function Departments() {
         size="medium"
       >
         <form onSubmit={handleSaveDepartment} className="space-y-5">
-          <Input
-            label="Department Name"
-            name="name"
-            value={form.name}
-            onChange={(event) =>
-              handleFormChange('name', event.target.value)
-            }
-            placeholder="Enter department name"
-            required
-            disabled={saving}
-          />
 
+          {/* Department Name */}
+          <div>
+            <Input
+              label="Department Name"
+              name="name"
+              value={form.name}
+              onChange={(event) =>
+                handleFormChange('name', event.target.value)
+              }
+              placeholder="Enter department name"
+              required
+              disabled={saving}
+            />
+
+            {fieldErrors.name?.length > 0 && (
+              <p className="mt-1 text-sm text-red-600">
+                {fieldErrors.name[0]}
+              </p>
+            )}
+          </div>
+
+          {/* Description */}
           <div>
             <label
               htmlFor="department-description"
@@ -399,26 +442,42 @@ function Departments() {
               disabled={saving}
               className="w-full rounded-lg border border-gray-300 px-4 py-3 focus:outline-none focus:ring-2 focus:ring-blue-500 disabled:opacity-60"
             />
+
+            {fieldErrors.description?.length > 0 && (
+              <p className="mt-1 text-sm text-red-600">
+                {fieldErrors.description[0]}
+              </p>
+            )}
           </div>
 
-          <Select
-            label="Status"
-            name="status"
-            value={form.status ? 'active' : 'inactive'}
-            onChange={(event) =>
-              handleFormChange(
-                'status',
-                event.target.value === 'active'
-              )
-            }
-            options={[
-              { value: 'active', label: 'Active' },
-              { value: 'inactive', label: 'Inactive' },
-            ]}
-            required
-            disabled={saving}
-          />
+          {/* Status */}
+          <div>
+            <Select
+              label="Status"
+              name="status"
+              value={form.status ? 'active' : 'inactive'}
+              onChange={(event) =>
+                handleFormChange(
+                  'status',
+                  event.target.value === 'active'
+                )
+              }
+              options={[
+                { value: 'active', label: 'Active' },
+                { value: 'inactive', label: 'Inactive' },
+              ]}
+              required
+              disabled={saving}
+            />
 
+            {fieldErrors.status?.length > 0 && (
+              <p className="mt-1 text-sm text-red-600">
+                {fieldErrors.status[0]}
+              </p>
+            )}
+          </div>
+
+          {/* Form actions */}
           <div className="flex flex-wrap justify-end gap-3 border-t border-gray-200 pt-4">
             <Button
               type="button"
@@ -463,6 +522,7 @@ function Departments() {
             <p className="font-medium text-gray-700">
               No departments found.
             </p>
+
             <p className="mt-1 text-sm text-gray-500">
               Try another search or add a department.
             </p>
@@ -504,6 +564,7 @@ function Departments() {
         cancelText="Cancel"
         loading={deleting}
       />
+
     </div>
   )
 }
